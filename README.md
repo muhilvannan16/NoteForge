@@ -11,8 +11,7 @@
 ![Web](https://img.shields.io/badge/web-streamlit-FF4B4B?logo=streamlit&logoColor=white)
 ![AI](https://img.shields.io/badge/AI-Groq%20%7C%20Llama%20%7C%20Whisper-6c63ff)
 
-*Replace the tests badge with a live one once pushed:*
-`![Tests](https://github.com/<your-username>/<your-repo>/actions/workflows/tests.yml/badge.svg)`
+![Tests](https://github.com/<your-username>/<your-repo>/actions/workflows/tests.yml/badge.svg)
 
 </div>
 
