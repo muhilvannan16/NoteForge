@@ -1,0 +1,6 @@
+customtkinter
+groq
+python-dotenv
+sounddevice
+numpy
+pytest
