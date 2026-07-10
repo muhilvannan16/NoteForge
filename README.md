@@ -10,7 +10,7 @@
 ![Desktop](https://img.shields.io/badge/desktop-customtkinter-1f6feb)
 ![Web](https://img.shields.io/badge/web-streamlit-FF4B4B?logo=streamlit&logoColor=white)
 ![AI](https://img.shields.io/badge/AI-Groq%20%7C%20Llama%20%7C%20Whisper-6c63ff)
-
+🔗 **[Try NoteForge live](https://noteforge-olasjtojdx8teuotjuiyfp.streamlit.app)**
 
 </div>
 
