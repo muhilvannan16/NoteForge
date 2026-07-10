@@ -147,3 +147,18 @@ Runs automatically on every push via GitHub Actions
 | AI | Groq API — Llama 3.1 (text), Whisper Large v3 (voice) |
 | Testing | pytest, GitHub Actions |
 | Packaging | PyInstaller |
+
+
+# 📄 License
+
+This project is licensed under the Apache 2.0 License.
+
+---
+
+# 👨‍💻 Developer
+
+**Muhilvannan Elavazhagan**
+
+GitHub:
+
+https://github.com/muhilvannan16
