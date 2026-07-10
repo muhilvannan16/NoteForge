@@ -298,7 +298,7 @@ with tab_notes:
             height=250,
         )
 
-        new_col, save_col, delete_col = st.columns(3)
+        new_col, save_col, delete_col, export_col = st.columns(4)
         with new_col:
             if st.button("New", key="notes_new_btn"):
                 st.session_state["selected_note_id"] = None
@@ -318,6 +318,21 @@ with tab_notes:
                 database.delete_note(selected_id)
                 st.session_state["selected_note_id"] = None
                 st.rerun()
+        with export_col:
+            if selected_id is not None:
+                export_content = f"{subject}\n{title}\n\n{content}"
+                safe_name = "".join(c for c in f"{subject} - {title}" if c not in '\\/:*?"<>|')
+            else:
+                export_content = ""
+                safe_name = "note"
+            st.download_button(
+                label="Export",
+                data=export_content,
+                file_name=f"{safe_name}.txt",
+                mime="text/plain",
+                disabled=selected_id is None,
+                key="notes_export_btn",
+            )
 
 
 # ---------------------------------------------------------------------------
