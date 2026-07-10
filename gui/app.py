@@ -10,6 +10,7 @@ import os
 import tempfile
 import threading
 import wave
+from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 import numpy as np
@@ -99,6 +100,9 @@ class NoteForgeApp(ctk.CTk):
 
         self.delete_button = ctk.CTkButton(button_row, text="Delete", command=self.delete_note)
         self.delete_button.pack(side="left", padx=5)
+
+        self.export_button = ctk.CTkButton(button_row, text="Export", command=self.export_note)
+        self.export_button.pack(side="left", padx=5)
 
         # AI Tools tab: output box + one button per AI action
         ai_tab = self.tabview.tab("AI Tools")
@@ -310,6 +314,27 @@ class NoteForgeApp(ctk.CTk):
             database.delete_note(self.current_note_id)
             self.new_note()
             self.refresh_notes_list()
+
+    def export_note(self):
+        """Export the currently loaded note to a text file."""
+        if self.current_note_id is None:
+            messagebox.showinfo("Export Note", "Save this note before exporting it.")
+            return
+        subject = self.subject_entry.get()
+        title = self.title_entry.get()
+        content = self.content_textbox.get("1.0", "end-1c")
+        safe_name = "".join(c for c in f"{subject} - {title}" if c not in '\\/:*?"<>|')
+        path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            initialfile=f"{safe_name}.txt",
+            title="Export Note",
+        )
+        if not path:
+            return
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"{subject}\n{title}\n\n{content}")
+        messagebox.showinfo("Export Note", "Note exported successfully.")
 
     # ---- AI Tools helpers -------------------------------------------------
 
