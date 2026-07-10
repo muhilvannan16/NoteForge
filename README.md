@@ -31,7 +31,7 @@
 
 | | |
 |---|---|
-| 📝 **Notes** | Create, edit, delete; live search across subject, title, *and* content |
+| 📝 **Notes** | Create, edit, delete; live search across subject, title, *and* content; export to a text file |
 | 🤖 **AI Tools** | Summarize a note; generate flashcards (saved to the database, not just displayed); get a suggested study schedule based on what's due |
 | 💬 **Chat** | Free-form conversation with the AI — by typing, or by voice (transcribed with Groq's Whisper model) |
 | 🔁 **Flashcards** | Spaced repetition review using the real SM-2 algorithm — rate each card Again/Hard/Good/Easy and the schedule adjusts automatically |
