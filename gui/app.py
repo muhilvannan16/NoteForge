@@ -6,6 +6,8 @@ functions from core/ (database, ai, srs) and never touches SQLite or the
 Groq API directly.
 """
 
+import csv
+import io
 import os
 import tempfile
 import threading
@@ -103,6 +105,9 @@ class NoteForgeApp(ctk.CTk):
 
         self.export_button = ctk.CTkButton(button_row, text="Export", command=self.export_note)
         self.export_button.pack(side="left", padx=5)
+
+        self.import_button = ctk.CTkButton(button_row, text="Import", command=self.import_note)
+        self.import_button.pack(side="left", padx=5)
 
         # AI Tools tab: output box + one button per AI action
         ai_tab = self.tabview.tab("AI Tools")
@@ -335,6 +340,63 @@ class NoteForgeApp(ctk.CTk):
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"{subject}\n{title}\n\n{content}")
         messagebox.showinfo("Export Note", "Note exported successfully.")
+
+    def import_note(self):
+        """Import a note from a .txt file, or bulk-import notes from a .csv file."""
+        path = filedialog.askopenfilename(
+            filetypes=[
+                ("Text or CSV files", "*.txt *.csv"),
+                ("Text files", "*.txt"),
+                ("CSV files", "*.csv"),
+                ("All files", "*.*"),
+            ],
+            title="Import Note(s)",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = f.read()
+        except Exception as e:
+            messagebox.showerror("Import", f"Could not read file: {e}")
+            return
+        if path.lower().endswith(".csv"):
+            self._import_csv(raw)
+        else:
+            self._import_text_note(raw)
+
+    def _import_text_note(self, raw):
+        """Parse a single note from text - matching Export's format if
+        possible, otherwise treating the whole file as content."""
+        lines = raw.split("\n")
+        if len(lines) >= 4 and lines[2] == "":
+            subject, title = lines[0], lines[1]
+            content = "\n".join(lines[3:])
+        else:
+            subject, title, content = "", "", raw
+        self.current_note_id = None
+        self.subject_entry.delete(0, "end")
+        self.subject_entry.insert(0, subject)
+        self.title_entry.delete(0, "end")
+        self.title_entry.insert(0, title)
+        self.content_textbox.delete("1.0", "end")
+        self.content_textbox.insert("1.0", content)
+        messagebox.showinfo("Import", "Note loaded into the editor. Review it, then click Save.")
+
+    def _import_csv(self, raw):
+        """Bulk-create notes from a CSV with subject/title/content columns."""
+        reader = csv.DictReader(io.StringIO(raw))
+        if reader.fieldnames:
+            reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
+        count = 0
+        for row in reader:
+            subject = row.get("subject", "") or ""
+            title = row.get("title", "") or ""
+            content = row.get("content", "") or ""
+            database.create_note(subject, title, content)
+            count += 1
+        self.refresh_notes_list()
+        messagebox.showinfo("Import", f"Imported {count} note(s).")
 
     # ---- AI Tools helpers -------------------------------------------------
 

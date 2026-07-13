@@ -15,7 +15,9 @@ paste back a previously-issued code to resume their notes on a later
 visit.
 """
 
+import csv
 import hashlib
+import io
 import json
 import os
 import tempfile
@@ -278,6 +280,13 @@ with tab_notes:
     with editor_col:
         st.subheader("Editor")
 
+        # A pending import (staged by the uploader below on a prior rerun)
+        # takes priority over whatever note is otherwise selected - this is
+        # how we get imported text into the editor without touching a
+        # widget's session_state key after it's already been instantiated
+        # this run, which Streamlit forbids.
+        pending_import = st.session_state.pop("pending_import", None)
+
         selected_id = st.session_state.get("selected_note_id")
         note = database.get_note(selected_id) if selected_id is not None else None
         if selected_id is not None and note is None:
@@ -285,15 +294,29 @@ with tab_notes:
             st.session_state["selected_note_id"] = None
             selected_id = None
 
+        if pending_import is not None:
+            default_subject = pending_import["subject"]
+            default_title = pending_import["title"]
+            default_content = pending_import["content"]
+        elif note is not None:
+            default_subject = note["subject"]
+            default_title = note["title"]
+            default_content = note["content"] or ""
+        else:
+            default_subject = default_title = default_content = ""
+
+        if "import_message" in st.session_state:
+            st.info(st.session_state.pop("import_message"))
+
         subject = st.text_input(
-            "Subject", value=note["subject"] if note else "", key=f"editor_subject_{selected_id}"
+            "Subject", value=default_subject, key=f"editor_subject_{selected_id}"
         )
         title = st.text_input(
-            "Title", value=note["title"] if note else "", key=f"editor_title_{selected_id}"
+            "Title", value=default_title, key=f"editor_title_{selected_id}"
         )
         content = st.text_area(
             "Content",
-            value=(note["content"] or "") if note else "",
+            value=default_content,
             key=f"editor_content_{selected_id}",
             height=250,
         )
@@ -333,6 +356,54 @@ with tab_notes:
                 disabled=selected_id is None,
                 key="notes_export_btn",
             )
+
+        if "last_import_hash" not in st.session_state:
+            st.session_state["last_import_hash"] = None
+
+        uploaded_file = st.file_uploader(
+            "Import a note (.txt) or bulk-import notes (.csv)",
+            type=["txt", "csv"],
+            key="notes_import_uploader",
+        )
+        if uploaded_file is not None:
+            file_bytes = uploaded_file.getvalue()
+            file_hash = hashlib.sha256(file_bytes).hexdigest()
+            if file_hash != st.session_state["last_import_hash"]:
+                st.session_state["last_import_hash"] = file_hash
+                raw = file_bytes.decode("utf-8")
+
+                if uploaded_file.name.lower().endswith(".csv"):
+                    reader = csv.DictReader(io.StringIO(raw))
+                    if reader.fieldnames:
+                        reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
+                    count = 0
+                    for row in reader:
+                        row_subject = row.get("subject", "") or ""
+                        row_title = row.get("title", "") or ""
+                        row_content = row.get("content", "") or ""
+                        database.create_note(row_subject, row_title, row_content)
+                        count += 1
+                    st.success(f"Imported {count} note(s).")
+                    st.rerun()
+                else:
+                    lines = raw.split("\n")
+                    if len(lines) >= 4 and lines[2] == "":
+                        import_subject, import_title = lines[0], lines[1]
+                        import_content = "\n".join(lines[3:])
+                    else:
+                        import_subject, import_title, import_content = "", "", raw
+                    st.session_state["selected_note_id"] = None
+                    for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
+                        st.session_state.pop(k, None)
+                    st.session_state["pending_import"] = {
+                        "subject": import_subject,
+                        "title": import_title,
+                        "content": import_content,
+                    }
+                    st.session_state["import_message"] = (
+                        "Note loaded into the editor. Review it, then click Save."
+                    )
+                    st.rerun()
 
 
 # ---------------------------------------------------------------------------
