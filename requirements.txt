@@ -3,4 +3,5 @@ groq
 python-dotenv
 sounddevice
 numpy
+pypdf
 pytest
