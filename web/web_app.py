@@ -24,6 +24,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
+import pypdf
 import streamlit as st
 from groq import Groq
 
@@ -243,6 +244,9 @@ if "selected_note_id" not in st.session_state:
     st.session_state["selected_note_id"] = None
 
 
+if "editor_version" not in st.session_state:
+    st.session_state["editor_version"] = 0
+    
 tab_notes, tab_ai, tab_chat, tab_flashcards, tab_quiz, tab_progress = st.tabs(
     ["Notes", "AI Tools", "Chat", "Flashcards", "Quiz", "Progress"]
 )
@@ -298,6 +302,8 @@ with tab_notes:
             default_subject = pending_import["subject"]
             default_title = pending_import["title"]
             default_content = pending_import["content"]
+            for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
+                st.session_state.pop(k, None)
         elif note is not None:
             default_subject = note["subject"]
             default_title = note["title"]
@@ -308,16 +314,18 @@ with tab_notes:
         if "import_message" in st.session_state:
             st.info(st.session_state.pop("import_message"))
 
+        ev = st.session_state["editor_version"]
+
         subject = st.text_input(
-            "Subject", value=default_subject, key=f"editor_subject_{selected_id}"
+            "Subject", value=default_subject, key=f"editor_subject_{selected_id}_{ev}"
         )
         title = st.text_input(
-            "Title", value=default_title, key=f"editor_title_{selected_id}"
+            "Title", value=default_title, key=f"editor_title_{selected_id}_{ev}"
         )
         content = st.text_area(
             "Content",
             value=default_content,
-            key=f"editor_content_{selected_id}",
+            key=f"editor_content_{selected_id}_{ev}",
             height=250,
         )
 
@@ -361,8 +369,8 @@ with tab_notes:
             st.session_state["last_import_hash"] = None
 
         uploaded_file = st.file_uploader(
-            "Import a note (.txt) or bulk-import notes (.csv)",
-            type=["txt", "csv"],
+            "Import a note (.txt, .pdf) or bulk-import notes (.csv)",
+            type=["txt", "csv", "pdf"],
             key="notes_import_uploader",
         )
         if uploaded_file is not None:
@@ -370,40 +378,73 @@ with tab_notes:
             file_hash = hashlib.sha256(file_bytes).hexdigest()
             if file_hash != st.session_state["last_import_hash"]:
                 st.session_state["last_import_hash"] = file_hash
-                raw = file_bytes.decode("utf-8")
 
-                if uploaded_file.name.lower().endswith(".csv"):
-                    reader = csv.DictReader(io.StringIO(raw))
-                    if reader.fieldnames:
-                        reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
-                    count = 0
-                    for row in reader:
-                        row_subject = row.get("subject", "") or ""
-                        row_title = row.get("title", "") or ""
-                        row_content = row.get("content", "") or ""
-                        database.create_note(row_subject, row_title, row_content)
-                        count += 1
-                    st.success(f"Imported {count} note(s).")
-                    st.rerun()
-                else:
-                    lines = raw.split("\n")
-                    if len(lines) >= 4 and lines[2] == "":
-                        import_subject, import_title = lines[0], lines[1]
-                        import_content = "\n".join(lines[3:])
+                if uploaded_file.name.lower().endswith(".pdf"):
+                    reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+                    content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+                    # pypdf often puts each word on its own line - collapse
+                    # single newlines into spaces while preserving paragraph
+                    # breaks (blank lines) as real paragraph breaks.
+                    content = content.replace("\n\n", "<<<PARA>>>")
+                    content = content.replace("\n", " ")
+                    content = content.replace("<<<PARA>>>", "\n\n")
+
+                    if not content.strip():
+                        st.warning(
+                            "No extractable text found in this PDF - it may be a "
+                            "scanned image rather than real text, which this "
+                            "feature can't read."
+                        )
                     else:
-                        import_subject, import_title, import_content = "", "", raw
-                    st.session_state["selected_note_id"] = None
-                    for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
-                        st.session_state.pop(k, None)
-                    st.session_state["pending_import"] = {
-                        "subject": import_subject,
-                        "title": import_title,
-                        "content": import_content,
-                    }
-                    st.session_state["import_message"] = (
-                        "Note loaded into the editor. Review it, then click Save."
-                    )
-                    st.rerun()
+                        st.session_state["selected_note_id"] = None
+                        for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
+                            st.session_state.pop(k, None)
+                        st.session_state["pending_import"] = {
+                            "subject": "",
+                            "title": "",
+                            "content": content,
+                        }
+                        st.session_state["import_message"] = (
+                            "PDF text loaded into the editor. Review it, then click Save."
+                        )
+                        st.session_state["editor_version"] += 1
+                        st.rerun()
+                else:
+                    raw = file_bytes.decode("utf-8")
+
+                    if uploaded_file.name.lower().endswith(".csv"):
+                        reader = csv.DictReader(io.StringIO(raw))
+                        if reader.fieldnames:
+                            reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
+                        count = 0
+                        for row in reader:
+                            row_subject = row.get("subject", "") or ""
+                            row_title = row.get("title", "") or ""
+                            row_content = row.get("content", "") or ""
+                            database.create_note(row_subject, row_title, row_content)
+                            count += 1
+                        st.success(f"Imported {count} note(s).")
+                        st.rerun()
+                    else:
+                        lines = raw.split("\n")
+                        if len(lines) >= 4 and lines[2] == "":
+                            import_subject, import_title = lines[0], lines[1]
+                            import_content = "\n".join(lines[3:])
+                        else:
+                            import_subject, import_title, import_content = "", "", raw
+                        st.session_state["selected_note_id"] = None
+                        for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
+                            st.session_state.pop(k, None)
+                        st.session_state["pending_import"] = {
+                            "subject": import_subject,
+                            "title": import_title,
+                            "content": import_content,
+                        }
+                        st.session_state["import_message"] = (
+                            "Note loaded into the editor. Review it, then click Save."
+                        )
+                        st.session_state["editor_version"] += 1
+                        st.rerun()
 
 
 # ---------------------------------------------------------------------------

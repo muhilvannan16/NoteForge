@@ -16,6 +16,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 import numpy as np
+import pypdf
 import sounddevice as sd
 
 from core import ai
@@ -342,17 +343,21 @@ class NoteForgeApp(ctk.CTk):
         messagebox.showinfo("Export Note", "Note exported successfully.")
 
     def import_note(self):
-        """Import a note from a .txt file, or bulk-import notes from a .csv file."""
+        """Import a note from a .txt or .pdf file, or bulk-import notes from a .csv file."""
         path = filedialog.askopenfilename(
             filetypes=[
-                ("Text or CSV files", "*.txt *.csv"),
+                ("Supported files", "*.txt *.csv *.pdf"),
                 ("Text files", "*.txt"),
                 ("CSV files", "*.csv"),
+                ("PDF files", "*.pdf"),
                 ("All files", "*.*"),
             ],
             title="Import Note(s)",
         )
         if not path:
+            return
+        if path.lower().endswith(".pdf"):
+            self._import_pdf(path)
             return
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -364,6 +369,31 @@ class NoteForgeApp(ctk.CTk):
             self._import_csv(raw)
         else:
             self._import_text_note(raw)
+
+    def _import_pdf(self, path):
+        """Extract text from a PDF and load it into the editor as a new note."""
+        try:
+            reader = pypdf.PdfReader(path)
+            content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as e:
+            messagebox.showerror("Import", f"Could not read PDF: {e}")
+            return
+        if not content.strip():
+            messagebox.showwarning(
+                "Import",
+                "No extractable text found in this PDF - it may be a scanned "
+                "image rather than real text, which this feature can't read."
+            )
+            return
+        self.current_note_id = None
+        self.subject_entry.delete(0, "end")
+        self.title_entry.delete(0, "end")
+        self.content_textbox.delete("1.0", "end")
+        content = content.replace("\n\n", "<<<PARA>>>")
+        content = content.replace("\n", " ")
+        content = content.replace("<<<PARA>>>", "\n\n")
+        self.content_textbox.insert("1.0", content)
+        messagebox.showinfo("Import", "PDF text loaded into the editor. Review it, then click Save.")
 
     def _import_text_note(self, raw):
         """Parse a single note from text - matching Export's format if
