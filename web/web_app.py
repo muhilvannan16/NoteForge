@@ -333,8 +333,7 @@ with tab_notes:
         with new_col:
             if st.button("New", key="notes_new_btn"):
                 st.session_state["selected_note_id"] = None
-                for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
-                    st.session_state.pop(k, None)
+                st.session_state["editor_version"] += 1
                 st.rerun()
         with save_col:
             if st.button("Save", key="notes_save_btn"):
@@ -380,35 +379,39 @@ with tab_notes:
                 st.session_state["last_import_hash"] = file_hash
 
                 if uploaded_file.name.lower().endswith(".pdf"):
-                    reader = pypdf.PdfReader(io.BytesIO(file_bytes))
-                    content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
-                    # pypdf often puts each word on its own line - collapse
-                    # single newlines into spaces while preserving paragraph
-                    # breaks (blank lines) as real paragraph breaks.
-                    content = content.replace("\n\n", "<<<PARA>>>")
-                    content = content.replace("\n", " ")
-                    content = content.replace("<<<PARA>>>", "\n\n")
-
-                    if not content.strip():
-                        st.warning(
-                            "No extractable text found in this PDF - it may be a "
-                            "scanned image rather than real text, which this "
-                            "feature can't read."
-                        )
+                    try:
+                        reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+                        content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+                    except Exception as e:
+                        st.error(f"Could not read PDF: {e}")
                     else:
-                        st.session_state["selected_note_id"] = None
-                        for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
-                            st.session_state.pop(k, None)
-                        st.session_state["pending_import"] = {
-                            "subject": "",
-                            "title": "",
-                            "content": content,
-                        }
-                        st.session_state["import_message"] = (
-                            "PDF text loaded into the editor. Review it, then click Save."
-                        )
-                        st.session_state["editor_version"] += 1
-                        st.rerun()
+                        # pypdf often puts each word on its own line - collapse
+                        # single newlines into spaces while preserving paragraph
+                        # breaks (blank lines) as real paragraph breaks.
+                        content = content.replace("\n\n", "<<<PARA>>>")
+                        content = content.replace("\n", " ")
+                        content = content.replace("<<<PARA>>>", "\n\n")
+
+                        if not content.strip():
+                            st.warning(
+                                "No extractable text found in this PDF - it may be a "
+                                "scanned image rather than real text, which this "
+                                "feature can't read."
+                            )
+                        else:
+                            st.session_state["selected_note_id"] = None
+                            for k in ("editor_subject_None", "editor_title_None", "editor_content_None"):
+                                st.session_state.pop(k, None)
+                            st.session_state["pending_import"] = {
+                                "subject": "",
+                                "title": "",
+                                "content": content,
+                            }
+                            st.session_state["import_message"] = (
+                                "PDF text loaded into the editor. Review it, then click Save."
+                            )
+                            st.session_state["editor_version"] += 1
+                            st.rerun()
                 else:
                     raw = file_bytes.decode("utf-8")
 
